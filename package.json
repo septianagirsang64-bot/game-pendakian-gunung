@@ -1,0 +1,17 @@
+{
+  "name": "pendakian-pulau-santai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prebuild": "node -e \"require('fs').copyFileSync('node_modules/three/build/three.min.js','www/lib/three.min.js')\"",
+    "setup": "npm install && npm run prebuild && npx cap add android && npx cap sync android",
+    "sync": "npm run prebuild && npx cap sync android",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.0",
+    "@capacitor/cli": "^6.1.0",
+    "@capacitor/core": "^6.1.0",
+    "three": "0.128.0"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "appId": "com.pulausantai.pendakian",
+  "appName": "Pendakian Pulau Santai",
+  "webDir": "www",
+  "android": { "allowMixedContent": false },
+  "backgroundColor": "#10223f"
+}
