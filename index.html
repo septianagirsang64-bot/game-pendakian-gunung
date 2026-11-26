@@ -81,6 +81,7 @@ canvas#cv{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
           <li><b>Joystick</b> di kiri bawah atau W A S D untuk berjalan</li>
           <li><b>Lompat</b> di kanan bawah atau spasi</li>
           <li><b>Geser layar</b> atau tahan klik mouse untuk memutar kamera, cubit atau scroll untuk zoom</li>
+          <li><b>Es licin</b> dan <b>jurang</b> menunggu. Pakai jembatan tali</li>
           <li><b>Stamina</b> habis saat berlari. Berhenti sebentar untuk memulihkannya</li>
           <li><b>Tombol di atas</b> untuk ganti waktu siang atau malam, ganti baju, dan berlari</li>
         </ul>
@@ -202,12 +203,17 @@ function startMusic(){
 /* ---------- bentuk dunia ---------- */
 var R=300;
 function rawNoise(x,z){return Math.sin(x*0.045)*Math.cos(z*0.04)*2.2+Math.sin(x*0.1+z*0.06)*1.0+Math.cos(z*0.12-x*0.085)*0.6;}
+var RV={x:89.5,z:-104,h:42};
+function ravAt(x,z){return (1-sstep(2.5,4.5,Math.abs(z-RV.z)))*(1-sstep(26,40,Math.abs(x-RV.x)));}
+var ICE=[];[[115,6],[85,-8],[55,7],[35,-5]].forEach(function(a){ICE.push({x:150-0.576*a[0]+0.817*a[1],z:-190+0.817*a[0]+0.576*a[1],r:10});});
+function iceAt(x,z){var m=0;for(var i=0;i<ICE.length;i++){m=Math.max(m,1-sstep(ICE[i].r*0.6,ICE[i].r,Math.hypot(x-ICE[i].x,z-ICE[i].z)));}return m;}
 function height(x,z){
   var d=Math.sqrt(x*x+z*z);
   var h=5.5-Math.pow(d/R,2.4)*14;
   h+=rawNoise(x,z)*clamp(h/3,0,1);
   var mx=x-150,mz=z+190;
   h+=100*Math.exp(-(mx*mx+mz*mz)/(2*75*75));
+  var ra=Math.abs(z-RV.z),re=1-sstep(26,40,Math.abs(x-RV.x));h+=(RV.h-h)*(1-sstep(8,16,ra))*re;h-=16*ravAt(x,z);
   var lx=x+45,lz=z-35;
   h-=8*Math.exp(-(lx*lx+lz*lz)/(2*15*15));
   var vd=Math.sqrt(x*x+(z-10)*(z-10));
@@ -235,7 +241,7 @@ function landPoint(x,z,minH){
   var TS=720,SEG=150;
   var g=new THREE.PlaneGeometry(TS,TS,SEG,SEG);g.rotateX(-Math.PI/2);
   var pos=g.attributes.position,n=pos.count,col=new Float32Array(n*3);
-  var cSand=new THREE.Color(0xf0dca0),cG1=new THREE.Color(0x66c45a),cG2=new THREE.Color(0x3fa04a),cRock=new THREE.Color(0x8d8579),cSnow=new THREE.Color(0xf5faff),cSea=new THREE.Color(0xb3a37a),cDirt=new THREE.Color(0xd9c38f),c=new THREE.Color();
+  var cSand=new THREE.Color(0xf0dca0),cG1=new THREE.Color(0x66c45a),cG2=new THREE.Color(0x3fa04a),cRock=new THREE.Color(0x8d8579),cSnow=new THREE.Color(0xf5faff),cIce=new THREE.Color(0xb7e8ff),cDark=new THREE.Color(0x2a2622),cSea=new THREE.Color(0xb3a37a),cDirt=new THREE.Color(0xd9c38f),c=new THREE.Color();
   for(var i=0;i<n;i++){
     var x=pos.getX(i),z=pos.getZ(i),h=height(x,z);
     pos.setY(i,h);
@@ -246,7 +252,7 @@ function landPoint(x,z,minH){
       c.copy(cG1).lerp(cG2,nv);
       c.lerp(cSand,1-sstep(1.2,2.1,h));
       c.lerp(cRock,clamp(Math.max((sl-0.5)*2.2,(h-48)/22),0,1));
-      c.lerp(cSnow,sstep(78,90,h));
+      c.lerp(cSnow,sstep(78,90,h));c.lerp(cIce,iceAt(x,z)*0.9);c.lerp(cDark,ravAt(x,z)*0.8);
       var vd=Math.hypot(x,z-10);
       c.lerp(cDirt,1-sstep(8.4,10.4,vd));
       var pw=(1-sstep(1.2,2.5,Math.abs(x)))*sstep(14,22,z)*(1-sstep(96,104,z));
@@ -870,7 +876,7 @@ var warnedEdge=0;
 
 /* ---------- sistem pendakian ---------- */
 var stam=100,tired=false,runningNow=false,CP={x:SPAWN.x,z:SPAWN.z},reached=0,wonSummit=false;
-var CAMPS=[{h:22,n:'Pos 1'},{h:44,n:'Pos 2'},{h:66,n:'Pos 3'},{h:0,n:'Puncak'}],rocks=[],rockT=3,gust=0,gdir=0;
+var CAMPS=[{h:22,n:'Pos 1'},{h:44,n:'Pos 2'},{h:66,n:'Pos 3'},{h:0,n:'Puncak'}],rocks=[],rockT=3,gust=0,gdir=0,iceTold=0,prevY=0,ravTold=0,climbTold=0;
 var bdx=SPAWN.x-summit.x,bdz=SPAWN.z-summit.z,bl=Math.hypot(bdx,bdz);bdx/=bl;bdz/=bl;
 CAMPS.forEach(function(c,i){
   if(i===3){c.x=summit.x;c.z=summit.z;return;}
@@ -880,6 +886,9 @@ CAMPS.forEach(function(c,i){
   var pl=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,3.4,6),mat(0xffd34d));pl.position.set(x+2.4,y+1.7,z);scene.add(pl);
   var fl=new THREE.Mesh(new THREE.PlaneGeometry(1.1,0.7),new THREE.MeshBasicMaterial({color:0xff4d6d,side:THREE.DoubleSide}));fl.position.set(x+3,y+3,z);scene.add(fl);
 });
+platforms.push({x:RV.x,z:RV.z,hw:1.4,hd:5,top:RV.h+0.05});
+var br=new THREE.Mesh(new THREE.BoxGeometry(2.8,0.3,10),mat(0x8a5a2b));br.position.set(RV.x,RV.h-0.1,RV.z);br.castShadow=true;scene.add(br);
+[-1.4,1.4].forEach(function(sx){var rp=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,10),mat(0xd8c39a));rp.position.set(RV.x+sx,RV.h+1,RV.z);scene.add(rp);[-4.8,0,4.8].forEach(function(sz){var po=new THREE.Mesh(new THREE.BoxGeometry(0.14,1.1,0.14),mat(0x5a3a1b));po.position.set(RV.x+sx,RV.h+0.5,RV.z+sz);scene.add(po);});});
 var rockG=new THREE.DodecahedronGeometry(1.1,0),rockM=new THREE.MeshLambertMaterial({color:0x7d7a76});
 function obstacles(dt,hi){
   rockT-=dt;
@@ -913,6 +922,10 @@ function climb(dt){
   if(tired&&stam>30)tired=false;
   scene.fog.far=760-hi*520;
   obstacles(dt,hi);
+  var up=(p.y-prevY)/Math.max(dt,0.001);prevY=p.y;
+  if(p.onGround&&up>3&&up<20){stam-=up*1.4*dt;if(!climbTold){climbTold=1;toast('Lereng curam: memanjat menguras stamina.');}}
+  if(!ravTold&&Math.hypot(p.x-RV.x,p.z-RV.z)<22){ravTold=1;toast('Jurang di depan! Lewati jembatan, jangan jatuh.');}
+  if(ravAt(p.x,p.z)>0.4&&p.y<RV.h-3){p.x=CP.x;p.z=CP.z;p.y=groundAt(p.x,p.z,50);p.vy=0;p.vx=p.vz=0;p.onGround=true;stam=Math.max(0,stam-30);toast('Jatuh ke jurang! Kembali ke pos terakhir.');}
   var cc=CAMPS[reached];
   if(cc&&Math.hypot(p.x-cc.x,p.z-cc.z)<(reached===3?6:8)){
     var c=cc;reached++;sfx.star();
@@ -932,7 +945,7 @@ function stepPlayer(dt){
   var wantRun=(runToggle||keys.shift)&&mg>0.1&&!tired;runningNow=wantRun;
   var spd=wantRun?9.5:(tired?3.6:5.4);
   if(p.swim)spd*=0.55;
-  var k=p.onGround?14:5;
+  var k=p.onGround?(iceAt(p.x,p.z)>0.5?1.8:14):5;if(p.onGround&&iceAt(p.x,p.z)>0.5&&!iceTold){iceTold=1;toast("Es licin! Sulit berhenti dan berbelok.");}
   p.vx+=(wx*spd-p.vx)*Math.min(1,k*dt);
   p.vz+=(wz*spd-p.vz)*Math.min(1,k*dt);
   if(Math.hypot(wx,wz)>0.1){
